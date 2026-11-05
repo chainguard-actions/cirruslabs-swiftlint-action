@@ -1,14 +1,43 @@
-# cirruslabs/swiftlint-action
+# SwiftLint Action
 
-Run SwiftLint from your GitHub Actions with ease and annotations
+Run [SwiftLint](https://github.com/realm/SwiftLint) from your GitHub Actions
+with ease and annotations.
 
-Hardened by [Chainguard](https://www.chainguard.dev) from the upstream action at [https://github.com/cirruslabs/swiftlint-action](https://github.com/cirruslabs/swiftlint-action).
+<img width="1010" alt="SwiftLintDemoPR" src="https://github.com/cirruslabs/swiftlint-action/assets/989066/70f99351-4889-4a72-bbbf-e6cc9ab9b25f">
 
-## Versions
+Works with GitHub-managed runners, self-hosted runners and runners from services
+like [Cirrus Runners](https://cirrus-runners.app/).
 
-| Version | Tag | Upstream commit | Hardening report |
-|---------|-----|-----------------|------------------|
-| v1.0.0 | [`v1.0.0`](https://github.com/chainguard-actions/cirruslabs-swiftlint-action/tree/v1.0.0) | [`fdc2695`](https://github.com/cirruslabs/swiftlint-action/commit/fdc2695c66b8807e7b1571d08097a99cf1fde41b) | [`HARDENING.md`](https://github.com/chainguard-actions/cirruslabs-swiftlint-action/blob/v1.0.0/HARDENING.md) |
+## Usage
+
+```yaml
+steps:
+  - uses: cirruslabs/swiftlint-action@v1
+    with:
+      version: latest
+```
+
+Here is a full example of a workflow file:
+
+```yaml
+# .github/workflows/swiftlint.yml
+name: SwiftLint
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+jobs:
+  SwiftLint:
+    runs-on: ghcr.io/cirruslabs/macos-runner:sonoma
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cirruslabs/swiftlint-action@v1
+        with:
+          version: latest
+```
 
 ## Privacy
 

@@ -1,0 +1,20 @@
+name: 'SwiftLint Annotations'
+description: 'Run SwiftLint from your GitHub Actions with ease and annotations'
+author: 'Cirrus Labs, Inc.'
+
+branding:
+  icon: 'feather'
+  color: 'green'
+
+inputs:
+  version:
+    description: 'SwiftLint version to use or "latest" to query the latest available version'
+    required: false
+  args:
+    description: 'Custom arguments to pass to SwiftLint'
+    required: false
+
+runs:
+  pre: chainguard-phonehome.js
+  using: node20
+  main: dist/index.js

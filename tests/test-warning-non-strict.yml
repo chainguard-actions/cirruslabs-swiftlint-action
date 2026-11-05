@@ -1,0 +1,53 @@
+name: Test warning-only violation passes without strict
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # SwiftLint 0.59.1 has no swiftlint_linux_amd64.zip asset (404), so seed the
+      # tool cache with a stand-in that reports a warning and exits 0, like
+      # SwiftLint does for warning-only violations without --strict.
+      - name: Seed tool cache with a SwiftLint stand-in reporting a warning
+        run: |
+          base="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+          dir="$base/swiftlint-linux/0.59.1/x64"
+          mkdir -p "$dir"
+          cat > "$dir/swiftlint" <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/swiftlint-args.txt
+          echo '[{"file":"tests/fixtures/warning/Counter.swift","line":3,"character":20,"severity":"Warning","type":"Trailing Semicolon","rule_id":"trailing_semicolon","reason":"Lines should not have trailing semicolons"}]'
+          exit 0
+          EOF
+          chmod +x "$dir/swiftlint"
+          touch "$base/swiftlint-linux/0.59.1/x64.complete"
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          version: 0.59.1
+          args: tests/fixtures/warning
+      - name: Assert lint succeeded despite warnings
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected success for warning-only violations"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert SwiftLint was invoked with expected args
+        run: |
+          if [ ! -f /tmp/swiftlint-args.txt ]; then
+            echo "FAIL: cached swiftlint binary was not invoked"
+            exit 1
+          fi
+          ARGS="$(cat /tmp/swiftlint-args.txt)"
+          echo "args: $ARGS"
+          if [ "$ARGS" != "lint --reporter=json tests/fixtures/warning" ]; then
+            echo "FAIL: unexpected args"
+            exit 1
+          fi
+          echo "PASS"

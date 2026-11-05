@@ -1,0 +1,62 @@
+{
+  "name": "swiftlint-action",
+  "description": "Run SwiftLint from your GitHub Actions with ease",
+  "version": "0.0.0",
+  "author": "",
+  "private": true,
+  "homepage": "https://github.com/cirruslabs/swiftlint-action",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cirruslabs/swiftlint-action.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cirruslabs/swiftlint-action/issues"
+  },
+  "keywords": [
+    "actions",
+    "node",
+    "swift",
+    "lint",
+    "swiftlint"
+  ],
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bundle": "npm run format:write && npm run package",
+    "format:write": "npx prettier --write .",
+    "format:check": "npx prettier --check .",
+    "lint": "npx eslint . -c ./.github/linters/.eslintrc.yml",
+    "package": "npx ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "package:watch": "npm run package -- --watch",
+    "all": "npm run format:write && npm run lint && npm run package"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/tool-cache": "^2.0.2",
+    "@octokit/action": "^8.0.2",
+    "@octokit/auth-action": "^6.0.1",
+    "@octokit/auth-unauthenticated": "^7.0.1",
+    "@octokit/types": "^14.1.0",
+    "@types/js-yaml": "^4.0.9",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vercel/ncc": "^0.38.3",
+    "eslint": "^8.57.1",
+    "eslint-plugin-github": "^5.1.8",
+    "eslint-plugin-jsonc": "^2.20.1",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "prettier-eslint": "^16.4.2",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,54 @@
+name: Test clean code with pinned version (tool cache hit)
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # SwiftLint 0.59.1 does not publish swiftlint_linux_amd64.zip (404) and newer
+      # binaries need GLIBC 2.38, which the act container lacks. Pre-seed the tool
+      # cache so the action's tc.find() cache-hit path is exercised instead.
+      - name: Seed tool cache with a SwiftLint stand-in for 0.59.1
+        run: |
+          base="${RUNNER_TOOL_CACHE:-/opt/hostedtoolcache}"
+          dir="$base/swiftlint-linux/0.59.1/x64"
+          mkdir -p "$dir"
+          cat > "$dir/swiftlint" <<'EOF'
+          #!/bin/sh
+          echo "$@" > /tmp/swiftlint-args.txt
+          echo '[]'
+          exit 0
+          EOF
+          chmod +x "$dir/swiftlint"
+          touch "$base/swiftlint-linux/0.59.1/x64.complete"
+          echo "seeded $dir"
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          version: 0.59.1
+          args: tests/fixtures/clean
+      - name: Assert lint succeeded
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: expected success for clean Swift code"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert cached SwiftLint was invoked with expected args
+        run: |
+          if [ ! -f /tmp/swiftlint-args.txt ]; then
+            echo "FAIL: cached swiftlint binary was not invoked"
+            exit 1
+          fi
+          ARGS="$(cat /tmp/swiftlint-args.txt)"
+          echo "args: $ARGS"
+          if [ "$ARGS" != "lint --reporter=json tests/fixtures/clean" ]; then
+            echo "FAIL: unexpected args"
+            exit 1
+          fi
+          echo "PASS"

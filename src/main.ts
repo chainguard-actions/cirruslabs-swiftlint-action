@@ -1,0 +1,162 @@
+import * as core from '@actions/core'
+import * as tc from '@actions/tool-cache'
+import * as tr from '@actions/exec/lib/toolrunner'
+import * as exec from '@actions/exec'
+import path from 'path'
+import * as process from 'node:process'
+import * as fs from 'node:fs'
+import * as yaml from 'js-yaml'
+
+interface Entry {
+  file?: string
+  line?: number
+  character?: number
+  severity: string
+  type: string
+  rule_id: string
+  reason: string
+}
+
+interface Config {
+  swiftlint_version: string
+}
+
+export async function run(): Promise<void> {
+  try {
+    // Determine the version to use
+    const version = determineVersion()
+
+    // Determine the asset URL
+    let url: string
+
+    if (version !== 'latest') {
+      url = `https://github.com/realm/SwiftLint/releases/download/${version}/`
+    } else {
+      url = 'https://github.com/realm/SwiftLint/releases/latest/download/'
+    }
+
+    if (process.platform === 'darwin') {
+      // SwiftLint's binaries for Darwin are universal
+      url += 'portable_swiftlint.zip'
+    } else if (process.platform === 'linux') {
+      switch (process.arch) {
+        case 'x64':
+          url += 'swiftlint_linux_amd64.zip'
+
+          break
+        case 'arm64':
+          url += 'swiftlint_linux_arm64.zip'
+
+          break
+        default:
+          core.setFailed(
+            `Unsupported Linux architecture "${process.arch}", only "x64" and "arm64" are currently supported`
+          )
+
+          return
+      }
+    } else {
+      core.setFailed(
+        `Unsupported OS "${process.platform}", only "darwin" and "linux" are currently supported`
+      )
+
+      return
+    }
+
+    // Retrieve the SwiftLint binary from the tool cache
+    const toolName = `swiftlint-${process.platform}`
+    let portableSwiftlintDir = tc.find(toolName, version)
+
+    // Download the SwiftLint binary if not found in the tool cache
+    if (portableSwiftlintDir === '') {
+      portableSwiftlintDir = await tc.extractZip(await tc.downloadTool(url))
+
+      // Cache the SwiftLint binary in the tool cache
+      // if it's not the "latest" version
+      if (version !== 'latest') {
+        await tc.cacheDir(portableSwiftlintDir, toolName, version)
+      }
+    }
+
+    // Run the SwiftLint binary and capture its standard output
+    const swiftlintArgs = ['lint', '--reporter=json']
+    const additionalArgs = core.getInput('args')
+    if (additionalArgs) {
+      swiftlintArgs.push(...tr.argStringToArray(additionalArgs))
+    }
+    const output = await exec.getExecOutput(
+      path.join(portableSwiftlintDir, 'swiftlint'),
+      swiftlintArgs,
+      {
+        ignoreReturnCode: true
+      }
+    )
+
+    // Parse the SwiftLint's JSON output
+    // and emit annotations
+    const result: Entry[] = JSON.parse(output.stdout)
+
+    for (const entry of result) {
+      let annotationFunc: (
+        message: string | Error,
+        properties?: core.AnnotationProperties
+      ) => void
+
+      switch (entry.severity.toLowerCase()) {
+        case 'warning':
+          annotationFunc = core.warning
+          break
+        case 'error':
+        default:
+          annotationFunc = core.error
+          break
+      }
+
+      // relativize the file path to the working directory
+      if (entry.file) {
+        entry.file = path.relative(
+          process.env.GITHUB_WORKSPACE || process.cwd(),
+          entry.file
+        )
+      }
+
+      annotationFunc(entry.reason, {
+        title: `${entry.type} (${entry.rule_id})`,
+        file: entry.file,
+        startLine: entry.line,
+        startColumn: entry.character
+      })
+    }
+
+    process.exit(output.exitCode)
+  } catch (error) {
+    // Fail the workflow run if an error occurs
+    if (error instanceof Error) core.setFailed(error.message)
+  }
+}
+
+function determineVersion(): string {
+  const userProvidedVersion: string = core.getInput('version')
+
+  // If the user had specified a version, use it
+  if (userProvidedVersion !== '') {
+    return userProvidedVersion
+  }
+
+  // If no version is specified, try reading the SwiftLint's configuration to see
+  // which version was requested and use it to avoid failing due to version mismatch
+  const swiftLintConfigPath = path.join(process.cwd(), '.swiftlint.yml')
+
+  if (fs.existsSync(swiftLintConfigPath)) {
+    const swiftLintConfigRaw = fs.readFileSync(swiftLintConfigPath, 'utf-8')
+
+    const swiftLintConfig = yaml.load(swiftLintConfigRaw) as Config
+
+    if (swiftLintConfig.swiftlint_version !== undefined) {
+      return swiftLintConfig.swiftlint_version
+    }
+  }
+
+  // Otherwise, use the latest version
+  return 'latest'
+}
